@@ -28,95 +28,163 @@ class ProfilePage extends StatelessWidget {
         ],
       ),
       drawer: Drawer(
-        child: ListTile(
-          leading: const Icon(Icons.widgets),
-          title: const Text('Widget Gallery'),
-          onTap: () {
-            Navigator.pop(context); // tutup drawer dulu
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const GalleryHome()),
-            );
-          },
+        child: Column(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.widgets),
+              title: const Text('Widget Gallery'),
+              onTap: () {
+                Navigator.pop(context); // tutup drawer dulu
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const GalleryHome()),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.settings),
+              title: const Text('Pengaturan'),
+              onTap: () {
+                Navigator.pop(context); // tutup drawer dulu
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Placeholder'),
+                    content: const Text('Fitur ini belum tersedia'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('OK'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ],
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // === HEADER PROFIL ===
-            Center(
-              child: Column(
-                children: [
-                  const CircleAvatar(
-                    radius: 50,
-                    backgroundColor: Colors.blue,
-                    child: Icon(
-                      Icons.emoji_emotions_sharp,
-                      size: 60,
-                      color: Colors.white,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color.fromARGB(255, 149, 193, 255), // Biru terang
+              Color.fromARGB(255, 66, 142, 255), // Biru gelap
+            ],
+          ),
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // === HEADER PROFIL ===
+              Center(
+                child: Column(
+                  children: [
+                    CircleAvatar(
+                      radius: 50,
+                      backgroundColor: Colors.blue.shade200,
+                      backgroundImage: const AssetImage('profile.jpg'),
                     ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Ismail Abdul Fathan',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Mahasiswa Teknik Informatika',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              // === BARIS STATISTIK (Row + Expanded) ===
+              Row(
+                children: [
+                  Expanded(
+                    child: _StatBox(label: 'Post', value: '12'),
                   ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Ismail Abdul Fathan',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  Expanded(
+                    child: _StatBox(label: 'Teman', value: '128'),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Mahasiswa Teknik Informatika',
-                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                  Expanded(
+                    child: _StatBox(label: 'Like', value: '1.2K'),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 24),
-            // === BARIS STATISTIK (Row + Expanded) ===
-            Row(
-              children: [
-                Expanded(
-                  child: _StatBox(label: 'Post', value: '12'),
-                ),
-                Expanded(
-                  child: _StatBox(label: 'Teman', value: '128'),
-                ),
-                Expanded(
-                  child: _StatBox(label: 'Like', value: '1.2K'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            // === SECTION CARD ===
-            _SectionCard(
-              icon: Icons.info_outline,
-              title: 'Tentang Saya',
-              content:
+              const SizedBox(height: 24),
+              // === SECTION CARD ===
+              _SectionCard(
+                icon: Icons.info_outline,
+                title: 'Tentang Saya',
+                content: const Text(
                   'Saya suka belajar hal baru, terutama yang berkaitan '
                   'dengan teknologi.',
-            ),
-            _SectionCard(
-              icon: Icons.school,
-              title: 'Pendidikan',
-              content: 'Universitas Pasundan — Semester 6\nIPK: 3.75',
-            ),
-            _SectionCard(
-              icon: Icons.favorite,
-              title: 'Hobi & Minat',
-              content: 'Coding • Game',
-            ),
-            _SectionCard(
-              icon: Icons.email,
-              title: 'Kontak',
-              content: 'horispararoh457@gmail.com\n+62 877-2000-8578',
-            ),
-            const SizedBox(height: 80), // ruang agar FAB tidak nutupi konten
-          ],
+                  style: TextStyle(height: 1.4),
+                ),
+              ),
+              _SectionCard(
+                icon: Icons.school,
+                title: 'Pendidikan',
+                content: const Text(
+                  'Universitas Pasundan — Semester 6\nIPK: 3.75',
+                  style: TextStyle(height: 1.4),
+                ),
+              ),
+              _SectionCard(
+                icon: Icons.favorite,
+                title: 'Hobi & Minat',
+                content: const Text(
+                  'Coding • Game',
+                  style: TextStyle(height: 1.4),
+                ),
+              ),
+              _SectionCard(
+                icon: Icons.email,
+                title: 'Kontak',
+                content: const Text(
+                  'horispararoh457@gmail.com\n+62 877-2000-8578',
+                  style: TextStyle(height: 1.4),
+                ),
+              ),
+              _SectionCard(
+                icon: Icons.code,
+                title: 'Skills',
+                content: Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: const [
+                    Chip(label: Text('Flutter')),
+                    Chip(label: Text('Dart')),
+                    Chip(label: Text('Java')),
+                    Chip(label: Text('Python')),
+                    Chip(label: Text('Git')),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 80), // ruang agar FAB tidak nutupi konten
+            ],
+          ),
         ),
       ),
 
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {},
+        onPressed: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Edit profil belum tersedia')),
+          );
+        },
         label: const Text('Edit'),
         icon: const Icon(Icons.edit),
       ),
@@ -157,7 +225,7 @@ class _StatBox extends StatelessWidget {
 class _SectionCard extends StatelessWidget {
   final IconData icon;
   final String title;
-  final String content;
+  final Widget content;
   const _SectionCard({
     required this.icon,
     required this.title,
@@ -186,7 +254,7 @@ class _SectionCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  Text(content, style: const TextStyle(height: 1.4)),
+                  content,
                 ],
               ),
             ),
