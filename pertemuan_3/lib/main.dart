@@ -79,36 +79,43 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Catatan Mahasiswa')),
-      body: ListView.builder(
-        itemCount: _catatan.length,
-        itemBuilder: (context, i) {
-          final c = _catatan[i];
-          return ListTile(
-            title: Text(c.judul),
-            subtitle: Text(c.kategori),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => DetailCatatanPage(catatan: c),
-                ),
-              );
-            },
-            trailing: FloatingActionButton(
-              heroTag: null,
-              onPressed: () {
-                setState(() => _catatan.removeAt(i));
+      body: _catatan.isEmpty
+          ? Center(
+              child: Text(
+                'Belum ada catatan',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            )
+          : ListView.builder(
+              itemCount: _catatan.length,
+              itemBuilder: (context, i) {
+                final c = _catatan[i];
+                return ListTile(
+                  title: Text(c.judul),
+                  subtitle: Text(c.kategori),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => DetailCatatanPage(catatan: c),
+                      ),
+                    );
+                  },
+                  trailing: FloatingActionButton(
+                    heroTag: null,
+                    onPressed: () {
+                      setState(() => _catatan.removeAt(i));
 
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Catatan "${c.judul}" dihapus')),
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Catatan "${c.judul}" dihapus')),
+                      );
+                    },
+                    child: const Icon(Icons.delete),
+                  ),
                 );
               },
-              child: const Icon(Icons.delete),
             ),
-          );
-        },
-      ),
       floatingActionButton: FloatingActionButton(
         onPressed: _bukaTambahCatatan,
         child: const Icon(Icons.add),
