@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'db_helper.dart' show DbHelper;
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -6,23 +7,46 @@ void main() {
 }
 
 class Catatan {
+  final int? id; // <- baru, nullable
   final String judul;
   final String isi;
   final String kategori;
   final DateTime dibuatPada;
 
   Catatan({
+    this.id,
     required this.judul,
     required this.isi,
     required this.kategori,
     required this.dibuatPada,
   });
-}
 
-class EditResult {
-  final Catatan catatan;
-  final int? index;
-  EditResult({required this.catatan, this.index});
+  // === Dart object → row Map ===
+  Map<String, Object?> toMap() => {
+    if (id != null) 'id': id,
+    'judul': judul,
+    'isi': isi,
+    'kategori': kategori,
+    'dibuat_pada': dibuatPada.millisecondsSinceEpoch,
+  };
+
+  // === Row Map → Dart object ===
+  static Catatan fromMap(Map<String, Object?> m) => Catatan(
+    id: m['id'] as int?,
+    judul: m['judul'] as String,
+    isi: m['isi'] as String,
+    kategori: m['kategori'] as String,
+    dibuatPada: DateTime.fromMillisecondsSinceEpoch(m['dibuat_pada'] as int),
+  );
+
+  // Helper untuk Edit — copy dengan beberapa field diganti.
+  Catatan copyWith({String? judul, String? isi, String? kategori}) => Catatan(
+    id: id,
+    judul: judul ?? this.judul,
+    isi: isi ?? this.isi,
+    kategori: kategori ?? this.kategori,
+    dibuatPada: dibuatPada,
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -45,8 +69,22 @@ class MyApp extends StatelessWidget {
             kategori: 'Lainnya',
             dibuatPada: DateTime.now(),
           ),
-          index: 0,
         ),
+      },
+      onGenerateRoute: (settings) {
+        switch (settings.name) {
+          case '/form':
+            final arg = settings.arguments;
+            return MaterialPageRoute(
+              builder: (_) => CatatanFormPage(initial: arg as Catatan?),
+            );
+          case '/detail':
+            final c = settings.arguments as Catatan;
+            return MaterialPageRoute(
+              builder: (_) => DetailCatatanPage(catatan: c),
+            );
+        }
+        return null;
       },
     );
   }
@@ -60,130 +98,136 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  // === STATE ===
-  final List<Catatan> _catatan = [
-    Catatan(
-      judul: 'Belajar Flutter',
-      isi: 'Mempelajari Stateful Widget, Form, dan Navigation.',
-      kategori: 'Kuliah',
-      dibuatPada: DateTime.now(),
-    ),
-  ];
+  late Future<List<Catatan>> _futureCatatan;
 
-  Future<void> _bukaTambahCatatan() async {
-    final hasil = await Navigator.pushNamed(context, '/tambah');
+  @override
+  void initState() {
+    super.initState();
+    _muatUlang();
+  }
 
-    if (hasil is Catatan) {
-      setState(() => _catatan.add(hasil));
+  void _muatUlang() {
+    setState(() {
+      _futureCatatan = DbHelper.instance.getAll();
+    });
+  }
 
+  Future<void> _bukaForm({Catatan? initial}) async {
+    await Navigator.pushNamed(context, '/form', arguments: initial);
+    _muatUlang(); // apapun hasilnya (insert/update/batal), reload dari DB
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Catatan Mahasiswa'),
+        actions: [
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _muatUlang),
+        ],
+      ),
+      body: FutureBuilder<List<Catatan>>(
+        future: _futureCatatan,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+          final data = snapshot.data ?? const [];
+          if (data.isEmpty) return const _EmptyState();
+          return ListView.separated(
+            itemCount: data.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            padding: const EdgeInsets.all(12),
+            itemBuilder: (_, i) => _itemCatatan(data[i]),
+          );
+        },
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _bukaForm(),
+        icon: const Icon(Icons.add),
+        label: const Text('Tambah'),
+      ),
+    );
+  }
+}
+
+class CatatanFormPage extends StatefulWidget {
+  final Catatan? initial;
+  const CatatanFormPage({super.key, this.initial});
+
+  @override
+  State<CatatanFormPage> createState() => _CatatanFormPageState();
+}
+
+class _CatatanFormPageState extends State<CatatanFormPage> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _judulCtrl;
+  late final TextEditingController _isiCtrl;
+  late String _kategori;
+  final _kategoriOpsi = const ['Kuliah', 'Tugas', 'Pribadi', 'Lainnya'];
+
+  bool get _isEdit => widget.initial != null;
+  bool _menyimpan = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Pre-fill kalau edit. Kalau create, string kosong.
+    _judulCtrl = TextEditingController(text: widget.initial?.judul ?? '');
+    _isiCtrl = TextEditingController(text: widget.initial?.isi ?? '');
+    _kategori = widget.initial?.kategori ?? 'Kuliah';
+  }
+
+  @override
+  void dispose() {
+    _judulCtrl.dispose();
+    _isiCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _simpan() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _menyimpan = true);
+    try {
+      if (_isEdit) {
+        final updated = widget.initial!.copyWith(
+          judul: _judulCtrl.text.trim(),
+          isi: _isiCtrl.text.trim(),
+          kategori: _kategori,
+        );
+        await DbHelper.instance.update(updated);
+      } else {
+        final baru = Catatan(
+          judul: _judulCtrl.text.trim(),
+          isi: _isiCtrl.text.trim(),
+          kategori: _kategori,
+          dibuatPada: DateTime.now(),
+        );
+        await DbHelper.instance.insert(baru);
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Catatan "${hasil.judul}" ditambahkan')),
+        SnackBar(
+          content: Text(_isEdit ? 'Catatan diperbarui' : 'Catatan ditambahkan'),
+        ),
       );
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _menyimpan = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal menyimpan: $e')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Catatan Mahasiswa')),
-      body: _catatan.isEmpty
-          ? Center(
-              child: Text(
-                'Belum ada catatan',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            )
-          : ListView.builder(
-              itemCount: _catatan.length,
-              itemBuilder: (context, i) {
-                final c = _catatan[i];
-                return ListTile(
-                  title: Text(c.judul),
-                  subtitle: Text(c.kategori),
-                  onTap: () async {
-                    final result = await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => DetailCatatanPage(catatan: c, index: i),
-                      ),
-                    );
-                    if (result is EditResult) {
-                      if (!mounted) return;
-                      setState(() {
-                        _catatan[result.index!] = result.catatan;
-                      });
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Catatan "${result.catatan.judul}" diupdate',
-                          ),
-                        ),
-                      );
-                    }
-                  },
-                  trailing: FloatingActionButton(
-                    heroTag: null,
-                    onPressed: () {
-                      setState(() => _catatan.removeAt(i));
-
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Catatan "${c.judul}" dihapus')),
-                      );
-                    },
-                    child: const Icon(Icons.delete),
-                  ),
-                );
-              },
-            ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _bukaTambahCatatan,
-        child: const Icon(Icons.add),
-      ),
-    );
-  }
-}
-
-class TambahCatatanPage extends StatefulWidget {
-  const TambahCatatanPage({super.key});
-
-  @override
-  State<TambahCatatanPage> createState() => _TambahCatatanPageState();
-}
-
-class _TambahCatatanPageState extends State<TambahCatatanPage> {
-  final _formKey = GlobalKey<FormState>();
-  final _judulCtrl = TextEditingController();
-  final _isiCtrl = TextEditingController();
-
-  String _kategori = 'Kuliah';
-  final _kategoriOpsi = const ['Kuliah', 'Tugas', 'Pribadi', 'Lainnya'];
-
-  @override
-  void dispose() {
-    _judulCtrl.dispose();
-    _isiCtrl.dispose();
-    super.dispose();
-  }
-
-  void _simpan() {
-    if (!_formKey.currentState!.validate()) return;
-
-    final catatanBaru = Catatan(
-      judul: _judulCtrl.text.trim(),
-      isi: _isiCtrl.text.trim(),
-      kategori: _kategori,
-      dibuatPada: DateTime.now(),
-    );
-
-    Navigator.pop(context, catatanBaru);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Tambah Catatan')),
+      appBar: AppBar(title: Text(_isEdit ? 'Edit Catatan' : 'Tambah Catatan')),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -230,118 +274,13 @@ class _TambahCatatanPageState extends State<TambahCatatanPage> {
             const SizedBox(height: 24),
             FilledButton.icon(
               onPressed: _simpan,
-              icon: const Icon(Icons.save),
-              label: const Text('Simpan'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class EditCatatanPage extends StatefulWidget {
-  final Catatan catatan;
-  final int index;
-  const EditCatatanPage({
-    super.key,
-    required this.catatan,
-    required this.index,
-  });
-
-  @override
-  State<EditCatatanPage> createState() => _EditCatatanPageState();
-}
-
-class _EditCatatanPageState extends State<EditCatatanPage> {
-  final _formKey = GlobalKey<FormState>();
-  final _judulCtrl = TextEditingController();
-  final _isiCtrl = TextEditingController();
-
-  String _kategori = 'Kuliah';
-  final _kategoriOpsi = const ['Kuliah', 'Tugas', 'Pribadi', 'Lainnya'];
-
-  @override
-  void initState() {
-    super.initState();
-    _judulCtrl.text = widget.catatan.judul;
-    _isiCtrl.text = widget.catatan.isi;
-    _kategori = widget.catatan.kategori;
-  }
-
-  @override
-  void dispose() {
-    _judulCtrl.dispose();
-    _isiCtrl.dispose();
-    super.dispose();
-  }
-
-  void _simpan() {
-    if (!_formKey.currentState!.validate()) return;
-
-    final catatanResult = Catatan(
-      judul: _judulCtrl.text.trim(),
-      isi: _isiCtrl.text.trim(),
-      kategori: _kategori,
-      dibuatPada: DateTime.now(),
-    );
-
-    final result = EditResult(catatan: catatanResult, index: widget.index);
-
-    Navigator.pop(context, result);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Edit Catatan')),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            TextFormField(
-              controller: _judulCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Judul',
-                prefixIcon: Icon(Icons.title),
-                border: OutlineInputBorder(),
-              ),
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'Judul wajib diisi';
-                if (v.trim().length < 3) return 'Minimal 3 karakter';
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              initialValue: _kategori,
-              decoration: const InputDecoration(
-                labelText: 'Kategori',
-                prefixIcon: Icon(Icons.category),
-                border: OutlineInputBorder(),
-              ),
-              items: _kategoriOpsi
-                  .map((k) => DropdownMenuItem(value: k, child: Text(k)))
-                  .toList(),
-              onChanged: (v) => setState(() => _kategori = v!),
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _isiCtrl,
-              maxLines: 5,
-              decoration: const InputDecoration(
-                labelText: 'Isi',
-                prefixIcon: Icon(Icons.notes),
-                border: OutlineInputBorder(),
-              ),
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Isi wajib diisi' : null,
-            ),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: _simpan,
-              icon: const Icon(Icons.save),
+              icon: _menyimpan
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.save),
               label: const Text('Simpan'),
             ),
           ],
@@ -353,8 +292,7 @@ class _EditCatatanPageState extends State<EditCatatanPage> {
 
 class DetailCatatanPage extends StatelessWidget {
   final Catatan catatan;
-  final int? index;
-  const DetailCatatanPage({super.key, required this.catatan, this.index});
+  const DetailCatatanPage({super.key, required this.catatan});
 
   @override
   Widget build(BuildContext context) {
@@ -365,16 +303,8 @@ class DetailCatatanPage extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.edit),
             onPressed: () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      EditCatatanPage(catatan: catatan, index: index!),
-                ),
-              );
-              if (result is EditResult) {
-                Navigator.pop(context, result);
-              }
+              await Navigator.pushNamed(context, '/form', arguments: catatan);
+              if (context.mounted) Navigator.pop(context); // tutup detail juga
             },
           ),
         ],
