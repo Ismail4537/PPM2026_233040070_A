@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'db_helper.dart' show DbHelper;
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Inisialisasi DbHelper (shared_preferences)
+  await DbHelper.instance.init();
+
   runApp(const MyApp());
 }
 
@@ -90,6 +94,15 @@ class MyApp extends StatelessWidget {
   }
 }
 
+class TambahCatatanPage extends StatelessWidget {
+  const TambahCatatanPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const CatatanFormPage(initial: null);
+  }
+}
+
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -117,6 +130,59 @@ class _HomePageState extends State<HomePage> {
     _muatUlang(); // apapun hasilnya (insert/update/batal), reload dari DB
   }
 
+  Widget _itemCatatan(Catatan c) {
+    return Card(
+      child: ListTile(
+        title: Text(c.judul),
+        subtitle: Text(c.isi, maxLines: 1, overflow: TextOverflow.ellipsis),
+        leading: Chip(label: Text(c.kategori)),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              onPressed: () => _bukaForm(initial: c),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              onPressed: () => _konfirmasiHapus(c),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _konfirmasiHapus(Catatan c) async {
+    final yakin = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Hapus catatan?'),
+        content: Text('"${c.judul}" akan dihapus permanen.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+
+    if (yakin == true) {
+      await DbHelper.instance.delete(c.id!);
+      if (!mounted) return;
+      _muatUlang();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('"${c.judul}" dihapus')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -139,7 +205,7 @@ class _HomePageState extends State<HomePage> {
           if (data.isEmpty) return const _EmptyState();
           return ListView.separated(
             itemCount: data.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            separatorBuilder: (_, _) => const SizedBox(height: 8),
             padding: const EdgeInsets.all(12),
             itemBuilder: (_, i) => _itemCatatan(data[i]),
           );
@@ -327,6 +393,32 @@ class DetailCatatanPage extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.note_outlined, size: 64, color: Colors.grey[400]),
+          const SizedBox(height: 16),
+          Text(
+            'Tidak ada catatan',
+            style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Tekan tombol + untuk membuat catatan baru',
+            style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+          ),
+        ],
       ),
     );
   }

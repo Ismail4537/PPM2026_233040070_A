@@ -33,11 +33,10 @@ dependencies:
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
-  cupertino_icons:
-    ^1.0.8
-    # === Baru di Pertemuan 4 ===
-  sqflite: ^2.3.3+1 # akses SQLite di Android/iOS
-  path: ^1.9.0 # helper join path (lokasi DB)
+  cupertino_icons: ^1.0.8
+
+  # Storage & Persistence
+  shared_preferences: ^2.5.5 # untuk semua platform (mobile, web, desktop)
 
 dev_dependencies:
   flutter_test:
