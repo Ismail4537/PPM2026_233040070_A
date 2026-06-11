@@ -1,17 +1,13 @@
 import 'package:flutter/material.dart';
-import 'db_helper.dart' show DbHelper;
+import 'api_client.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Inisialisasi DbHelper (shared_preferences)
-  await DbHelper.instance.init();
-
   runApp(const MyApp());
 }
 
 class Catatan {
-  final int? id; // <- baru, nullable
+  final int? id;
   final String judul;
   final String isi;
   final String kategori;
@@ -25,25 +21,22 @@ class Catatan {
     required this.dibuatPada,
   });
 
-  // === Dart object → row Map ===
-  Map<String, Object?> toMap() => {
+  Map<String, dynamic> toJson() => {
     if (id != null) 'id': id,
     'judul': judul,
     'isi': isi,
     'kategori': kategori,
-    'dibuat_pada': dibuatPada.millisecondsSinceEpoch,
+    'dibuat_pada': dibuatPada.toUtc().toIso8601String(),
   };
 
-  // === Row Map → Dart object ===
-  static Catatan fromMap(Map<String, Object?> m) => Catatan(
+  static Catatan fromJson(Map<String, dynamic> m) => Catatan(
     id: m['id'] as int?,
     judul: m['judul'] as String,
     isi: m['isi'] as String,
     kategori: m['kategori'] as String,
-    dibuatPada: DateTime.fromMillisecondsSinceEpoch(m['dibuat_pada'] as int),
+    dibuatPada: DateTime.parse(m['dibuat_pada'] as String),
   );
 
-  // Helper untuk Edit — copy dengan beberapa field diganti.
   Catatan copyWith({String? judul, String? isi, String? kategori}) => Catatan(
     id: id,
     judul: judul ?? this.judul,
@@ -121,7 +114,8 @@ class _HomePageState extends State<HomePage> {
 
   void _muatUlang() {
     setState(() {
-      _futureCatatan = DbHelper.instance.getAll();
+      _futureCatatan = ApiClient.instance
+          .getAll(); // <-- satu-satunya perubahan
     });
   }
 
@@ -174,12 +168,19 @@ class _HomePageState extends State<HomePage> {
     );
 
     if (yakin == true) {
-      await DbHelper.instance.delete(c.id!);
-      if (!mounted) return;
-      _muatUlang();
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('"${c.judul}" dihapus')));
+      try {
+        await ApiClient.instance.delete(c.id!); // <-- ApiClient
+        if (!mounted) return;
+        _muatUlang();
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('"${c.judul}" dihapus')));
+      } on ApiException catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal menghapus: ${e.message}')),
+        );
+      }
     }
   }
 
@@ -199,7 +200,25 @@ class _HomePageState extends State<HomePage> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
+            final e = snapshot.error;
+            final pesan = e is ApiException
+                ? e.message
+                : 'Terjadi kesalahan: $e';
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 48),
+                  const SizedBox(height: 8),
+                  Text(pesan, textAlign: TextAlign.center),
+                  const SizedBox(height: 12),
+                  FilledButton(
+                    onPressed: _muatUlang,
+                    child: const Text('Coba lagi'),
+                  ),
+                ],
+              ),
+            );
           }
           final data = snapshot.data ?? const [];
           if (data.isEmpty) return const _EmptyState();
@@ -264,7 +283,7 @@ class _CatatanFormPageState extends State<CatatanFormPage> {
           isi: _isiCtrl.text.trim(),
           kategori: _kategori,
         );
-        await DbHelper.instance.update(updated);
+        await ApiClient.instance.update(updated); // <-- ApiClient
       } else {
         final baru = Catatan(
           judul: _judulCtrl.text.trim(),
@@ -272,7 +291,7 @@ class _CatatanFormPageState extends State<CatatanFormPage> {
           kategori: _kategori,
           dibuatPada: DateTime.now(),
         );
-        await DbHelper.instance.insert(baru);
+        await ApiClient.instance.insert(baru); // <-- ApiClient
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -281,12 +300,12 @@ class _CatatanFormPageState extends State<CatatanFormPage> {
         ),
       );
       Navigator.pop(context);
-    } catch (e) {
+    } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _menyimpan = false);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Gagal menyimpan: $e')));
+      ).showSnackBar(SnackBar(content: Text('Gagal menyimpan: ${e.message}')));
     }
   }
 
