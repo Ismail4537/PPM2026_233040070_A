@@ -59,14 +59,6 @@ class MyApp extends StatelessWidget {
       routes: {
         '/': (context) => const HomePage(),
         '/tambah': (context) => const TambahCatatanPage(),
-        '/detail': (context) => DetailCatatanPage(
-          catatan: Catatan(
-            judul: 'Contoh',
-            isi: 'Ini adalah contoh catatan.',
-            kategori: 'Lainnya',
-            dibuatPada: DateTime.now(),
-          ),
-        ),
       },
       onGenerateRoute: (settings) {
         switch (settings.name) {
@@ -143,6 +135,7 @@ class _HomePageState extends State<HomePage> {
             ),
           ],
         ),
+        onTap: () => Navigator.pushNamed(context, '/detail', arguments: c),
       ),
     );
   }
@@ -387,10 +380,8 @@ class DetailCatatanPage extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.edit),
-            onPressed: () async {
-              await Navigator.pushNamed(context, '/form', arguments: catatan);
-              if (context.mounted) Navigator.pop(context); // tutup detail juga
-            },
+            onPressed: () =>
+                Navigator.pushNamed(context, '/form', arguments: catatan),
           ),
         ],
       ),
